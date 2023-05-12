@@ -1,0 +1,11 @@
+README.md
+setup.py
+mot_3d/__init__.py
+mot_3d/association.py
+mot_3d/frame_data.py
+mot_3d/mot.py
+mot_3d/update_info_data.py
+mot_3d.egg-info/PKG-INFO
+mot_3d.egg-info/SOURCES.txt
+mot_3d.egg-info/dependency_links.txt
+mot_3d.egg-info/top_level.txt
