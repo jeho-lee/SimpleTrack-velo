@@ -42,6 +42,8 @@ class KalmanFilterVeloMotionModel:
                               [0,0,0,0,0,0,0,1,0,0],
                               [0,0,0,0,0,0,0,0,1,0]])
 
+        self.kf.B = np.zeros((10, 1))                     # dummy control transition matrix
+        
         self.covariance_type = covariance
         
         # Define uncertainty matrix
@@ -52,8 +54,9 @@ class KalmanFilterVeloMotionModel:
         self.kf.P *= 10.
         # self.kf.Q[7:, 7:] *= 0.01
 
+        # Only used for read the history of the tracklet (bbox, velo)
         self.history = [bbox]
-        # self.history_velo = [velo]
+        self.history_velo = [velo]
     
     def get_prediction(self, time_stamp=None):      # from kalman_filter.py
         """
@@ -61,7 +64,7 @@ class KalmanFilterVeloMotionModel:
         """
         time_lag = time_stamp - self.prev_time_stamp
         self.latest_time_stamp = time_stamp
-        #
+        
         # state transition matrix in current frame
         self.kf.F = np.array([[1,0,0,0,0,0,0,time_lag,0,0],      
                               [0,1,0,0,0,0,0,0,time_lag,0],
@@ -74,12 +77,16 @@ class KalmanFilterVeloMotionModel:
                               [0,0,0,0,0,0,0,0,1,0],
                               [0,0,0,0,0,0,0,0,0,1]])
         
+        # State predictions of tracklets
+        # BBox location (x, y, z) and its velocity is used for prediction
         pred_x = self.kf.get_prediction()[0] # (x, P)
         if pred_x[3] >= np.pi: pred_x[3] -= np.pi * 2
         if pred_x[3] < -np.pi: pred_x[3] += np.pi * 2
         pred_bbox = BBox.array2bbox(pred_x[:7].reshape(-1))
+        pred_velo = pred_x[7:9].reshape(-1)
 
         self.history.append(pred_bbox)
+        self.history_velo.append(pred_velo)
         return pred_bbox
 
     def predict(self, time_stamp=None):
@@ -90,12 +97,19 @@ class KalmanFilterVeloMotionModel:
         if self.kf.x[3] < -np.pi: self.kf.x[3] += np.pi * 2
         return
 
-    def update(self, det_bbox: BBox, aux_info): 
+    def update(self, det_bbox: BBox, aux_info):
         """ 
-        Updates the state vector with observed bbox.
+        Updates the state vector with observed bbox and velocity.
         """
-        bbox = BBox.bbox2array(det_bbox)[:7].tolist()
+        # bbox = BBox.bbox2array(det_bbox)[:7].tolist()
+        
+        # Observed bbox and velocity
+        bbox = BBox.bbox2array(det_bbox)[:7] # KalmanFilter.py
         velo = aux_info['velo']
+        
+        # full pipeline of kf, first predict, then update
+        self.predict()
+        
         ######################### orientation correction
         if self.kf.x[3] >= np.pi: self.kf.x[3] -= np.pi * 2    # make the theta still in the range
         if self.kf.x[3] < -np.pi: self.kf.x[3] += np.pi * 2
@@ -118,7 +132,10 @@ class KalmanFilterVeloMotionModel:
 
         #########################     # flip
 
-        self.kf.update(np.asarray(bbox + velo))
+        # Update the object state
+        self.kf.update(np.concatenate((bbox, velo), axis=0))
+        
+        self.prev_time_stamp = self.latest_time_stamp
 
         if self.kf.x[3] >= np.pi: self.kf.x[3] -= np.pi * 2    # make the theta still in the rage
         if self.kf.x[3] < -np.pi: self.kf.x[3] += np.pi * 2
@@ -127,6 +144,11 @@ class KalmanFilterVeloMotionModel:
             self.score = self.score * 0.1
         else:
             self.score = det_bbox.s
+        
+        cur_bbox = self.kf.x[:7].reshape(-1).tolist()
+        cur_bbox = BBox.array2bbox(cur_bbox + [self.score])
+        self.history[-1] = cur_bbox
+        self.history_velo[-1] = velo
         return
 
     def get_state(self):

@@ -74,7 +74,9 @@ class KalmanFilterMotionModel:
         """
         time_lag = time_stamp - self.prev_time_stamp
         self.latest_time_stamp = time_stamp
-        self.kf.F = np.array([[1,0,0,0,0,0,0,time_lag,0,0],      # state transition matrix
+        
+        # state transition matrix in current frame
+        self.kf.F = np.array([[1,0,0,0,0,0,0,time_lag,0,0],
                               [0,1,0,0,0,0,0,0,time_lag,0],
                               [0,0,1,0,0,0,0,0,0,time_lag],
                               [0,0,0,1,0,0,0,0,0,0],
@@ -84,6 +86,7 @@ class KalmanFilterMotionModel:
                               [0,0,0,0,0,0,0,1,0,0],
                               [0,0,0,0,0,0,0,0,1,0],
                               [0,0,0,0,0,0,0,0,0,1]])
+        
         pred_x = self.kf.get_prediction()[0]
         if pred_x[3] >= np.pi: pred_x[3] -= np.pi * 2
         if pred_x[3] < -np.pi: pred_x[3] += np.pi * 2

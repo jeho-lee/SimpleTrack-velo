@@ -7,7 +7,8 @@ running:
   asso: giou
   has_velo: true
   nms_thres: 0.1
-  motion_model: kf
+  # motion_model: kf
+  motion_model: kf-velo
   asso_thres:
     giou: 1.5
     iou: 0.9

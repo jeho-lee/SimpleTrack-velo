@@ -18,12 +18,12 @@ def associate_dets_to_tracks(dets, tracks, mode, asso,
     
     unmatched_dets = list()
     for d, det in enumerate(dets):
-        if d not in matched_indices[:, 0]:
+        if d not in matched_indices[:, 0]: #    matched_indices[:, 0] is the detection index
             unmatched_dets.append(d)
 
     unmatched_tracks = list()
     for t, trk in enumerate(tracks):
-        if t not in matched_indices[:, 1]:
+        if t not in matched_indices[:, 1]: #    matched_indices[:, 1] is the track index
             unmatched_tracks.append(t)
     
     matches = list()

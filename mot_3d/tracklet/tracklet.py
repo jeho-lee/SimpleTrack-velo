@@ -22,6 +22,11 @@ class Tracklet:
         if self.motion_model_type == 'kf':
             self.motion_model = motion_model.KalmanFilterMotionModel(
                 bbox=bbox, inst_type=self.det_type, time_stamp=time_stamp, covariance=configs['running']['covariance'])
+        elif self.motion_model_type == 'kf-velo':
+            self.motion_model = motion_model.KalmanFilterVeloMotionModel(
+                bbox=bbox, velo=aux_info['velo'], inst_type=self.det_type, time_stamp=time_stamp, covariance=configs['running']['covariance'])
+        
+        
 
         # life and death management
         self.life_manager = life_manager.HitManager(configs, frame_index)
