@@ -1,3 +1,4 @@
 vis/
 det_results/
-
+mot_3d.egg-info/
+*.pyc
