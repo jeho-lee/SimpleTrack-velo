@@ -111,17 +111,23 @@ class KalmanFilterVeloMotionModel:
         self.predict()
         
         ######################### orientation correction
+        # Orientation correction for theta prediction
         if self.kf.x[3] >= np.pi: self.kf.x[3] -= np.pi * 2    # make the theta still in the range
         if self.kf.x[3] < -np.pi: self.kf.x[3] += np.pi * 2
 
+        # Orientation correction for theta observation
         new_theta = bbox[3]
         if new_theta >= np.pi: new_theta -= np.pi * 2    # make the theta still in the range
         if new_theta < -np.pi: new_theta += np.pi * 2
         bbox[3] = new_theta
 
         predicted_theta = self.kf.x[3]
+        
+        # Orientation correction from AB3DMOT
+        # pred theta와 observed theta의 차이가 90도 이상이면, pred theta에 180도를 더해줌
+        # Detection 시 theta가 이전의 것과 완전 다르게 (거의 반대 방향) 예측되는 경우도 있는데, 현실에서는 이러한 일이 거의 없음
         if np.abs(new_theta - predicted_theta) > np.pi / 2.0 and np.abs(new_theta - predicted_theta) < np.pi * 3 / 2.0:     # if the angle of two theta is not acute angle
-            self.kf.x[3] += np.pi       
+            self.kf.x[3] += np.pi
             if self.kf.x[3] > np.pi: self.kf.x[3] -= np.pi * 2    # make the theta still in the range
             if self.kf.x[3] < -np.pi: self.kf.x[3] += np.pi * 2
 

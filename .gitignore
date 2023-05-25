@@ -1,4 +1,5 @@
 vis/
 det_results/
 mot_3d.egg-info/
+*.cpython-38.pyc
 *.pyc

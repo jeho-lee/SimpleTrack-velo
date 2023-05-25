@@ -134,6 +134,19 @@ class BBox:
         return yaw
     
     @classmethod
+    def yaw2quaternion(cls, yaw):
+        # https://automaticaddison.com/how-to-convert-euler-angles-to-quaternions-using-python/
+        roll = 0
+        pitch = 0
+
+        qx = np.sin(roll/2) * np.cos(pitch/2) * np.cos(yaw/2) - np.cos(roll/2) * np.sin(pitch/2) * np.sin(yaw/2)
+        qy = np.cos(roll/2) * np.sin(pitch/2) * np.cos(yaw/2) + np.sin(roll/2) * np.cos(pitch/2) * np.sin(yaw/2)
+        qz = np.cos(roll/2) * np.cos(pitch/2) * np.sin(yaw/2) - np.sin(roll/2) * np.sin(pitch/2) * np.cos(yaw/2)
+        qw = np.cos(roll/2) * np.cos(pitch/2) * np.cos(yaw/2) + np.sin(roll/2) * np.sin(pitch/2) * np.sin(yaw/2)
+
+        return np.array([qw, qx, qy, qz])
+    
+    @classmethod
     def bbox2world(cls, ego_matrix, box):
         # center and corners
         corners = np.array(BBox.box2corners2d(box))
