@@ -15,3 +15,14 @@ class UpdateInfoData:
         self.pc = pc
         self.dets = dets
         self.aux_info = aux_info
+
+# Jeho
+class UpdateInfoDataV2:
+    def __init__(self, mode, bbox: BBox, frame_index, ego, dets=None, pc=None, velo=None):
+        self.mode = mode   # association state
+        self.bbox = bbox
+        self.ego = ego    
+        self.frame_index = frame_index
+        self.pc = pc
+        self.dets = dets
+        self.velo = velo

@@ -8,8 +8,125 @@ from .data_protos import BBox, Validity
 from .association import associate_dets_to_tracks
 from . import visualization
 from simpletrack.mot_3d import redundancy
-import pdb, os
+import pdb, os    
 
+
+
+
+class OnlineMOTracker:
+    def __init__(self, configs):
+        self.trackers = list()         # tracker for each single tracklet
+        self.frame_count = 0           # record for the frames
+        self.count = 0                 # record the obj number to assign ids
+        self.time_stamp = None         # the previous time stamp
+        self.redundancy = RedundancyModule(configs) # module for no detection cases        
+    
+        self.configs = configs
+        self.match_type = configs['running']['match_type']
+        
+        # self.score_threshold = configs['running']['score_threshold']
+        self.score_threshold = 0.35 # Duplicate in detection model
+        
+        self.asso = configs['running']['asso']
+        self.asso_thres = configs['running']['asso_thres'][self.asso]
+        
+        self.motion_model = configs['running']['motion_model'] # kf-velo or kf
+
+        self.max_age = configs['running']['max_age_since_update']
+        self.min_hits = configs['running']['min_hits_to_birth']
+        
+        ###
+        self.has_velo = True
+    
+    def state_prediction(self, frame_info):
+        # get state predictions
+        trk_preds = list()
+        for trk in self.trackers:
+            trk_preds.append(trk.predict(frame_info['time_stamp'], frame_info['is_key_frame']))
+
+        return trk_preds
+    
+    def association_and_update(self, frame_info, det_info, trk_preds):
+        """
+        """
+        dets = det_info['dets']
+        det_indexes = [i for i, det in enumerate(dets) if det.s >= self.score_threshold]
+        dets = [dets[i] for i in det_indexes]
+
+        # ASSOCIATION
+        trk_innovation_matrix = None
+        if self.asso == 'm_dis': # for m-distance association
+            trk_innovation_matrix = [trk.compute_innovation_matrix() for trk in self.trackers] 
+
+        matched, unmatched_dets, unmatched_trks = associate_dets_to_tracks(dets, trk_preds, 
+            self.match_type, self.asso, self.asso_thres, trk_innovation_matrix)
+        
+        for k in range(len(matched)):
+            matched[k][0] = det_indexes[matched[k][0]]
+        for k in range(len(unmatched_dets)):
+            unmatched_dets[k] = det_indexes[unmatched_dets[k]]
+        
+        time_lag = frame_info['time_stamp'] - self.time_stamp
+        
+        # UPDATE
+        # update the matched tracks
+        for t, trk in enumerate(self.trackers):
+            if t not in unmatched_trks:
+                for k in range(len(matched)):
+                    if matched[k][1] == t:
+                        d = matched[k][0]
+                        break
+                if self.has_velo:
+                    aux_info = {
+                        'velo': list(det_info['velos'][d]),
+                        'is_key_frame': frame_info['is_key_frame']}
+                else:
+                    aux_info = {'is_key_frame': frame_info['is_key_frame']}
+                update_info = UpdateInfoData(mode=1, bbox=det_info['dets'][d], ego=frame_info['ego'], 
+                    frame_index=self.frame_count, pc=frame_info['pc'], 
+                    dets=det_info['dets'], aux_info=aux_info)
+                trk.update(update_info)
+            else:
+                result_bbox, update_mode, aux_info = self.redundancy.infer(trk, time_lag)
+                aux_info = {'is_key_frame': frame_info['is_key_frame']}
+                update_info = UpdateInfoData(mode=update_mode, bbox=result_bbox, 
+                    ego=frame_info['ego'], frame_index=self.frame_count, 
+                    pc=frame_info['pc'], dets=det_info['dets'], aux_info=aux_info)
+                trk.update(update_info)
+        
+        # create new tracks for unmatched detections
+        for index in unmatched_dets:
+            if self.has_velo:
+                aux_info = {
+                    'velo': list(det_info['velos'][index]), 
+                    'is_key_frame': frame_info['is_key_frame']}
+            else:
+                aux_info = {'is_key_frame': frame_info['is_key_frame']}
+
+            track = tracklet.Tracklet(self.configs, self.count, det_info['dets'][index], det_info['det_types'][index], 
+                self.frame_count, aux_info=aux_info, time_stamp=frame_info['time_stamp'])
+            self.trackers.append(track)
+            self.count += 1
+        
+        # remove dead tracks
+        track_num = len(self.trackers)
+        for index, trk in enumerate(reversed(self.trackers)):
+            if trk.death(self.frame_count):
+                self.trackers.pop(track_num - 1 - index)
+        
+        # output the results
+        result = list()
+        for trk in self.trackers:
+            state_string = trk.state_string(self.frame_count)
+            result.append((trk.get_state(), trk.id, state_string, trk.det_type))
+        
+        # wrap up and update the information about the mot trackers
+        self.time_stamp = frame_info['time_stamp']
+        for trk in self.trackers:
+            trk.sync_time_stamp(self.time_stamp)
+
+        return result
+        
 
 class MOTModel:
     def __init__(self, configs):
@@ -49,7 +166,7 @@ class MOTModel:
             tracks on this frame: [(bbox0, id0), (bbox1, id1), ...]
         """
         self.frame_count += 1
-
+    
         # initialize the time stamp on frame 0
         if self.time_stamp is None:
             self.time_stamp = input_data.time_stamp
@@ -57,7 +174,7 @@ class MOTModel:
         if not input_data.aux_info['is_key_frame']:
             result = self.non_key_frame_mot(input_data)
             return result
-    
+
         if 'kf' in self.motion_model:
             matched, unmatched_dets, unmatched_trks = self.forward_step_trk(input_data)
         

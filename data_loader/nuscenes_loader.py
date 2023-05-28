@@ -10,7 +10,6 @@ from simpletrack.mot_3d.data_protos import BBox
 import simpletrack.mot_3d.utils as utils
 from simpletrack.mot_3d.preprocessing import nms
 
-
 def transform_matrix(translation: np.ndarray = np.array([0, 0, 0]),
                      rotation: np.ndarray = np.array([1, 0, 0, 0]),
                      inverse: bool = False) -> np.ndarray:
@@ -39,6 +38,97 @@ def nu_array2mot_bbox(b):
         mot_bbox.s = b[-1]
     return mot_bbox
 
+class NuScenesMOTDataLoader:
+    def __init__(self):
+        self.ego_cam = 'CAM_FRONT'
+    
+    def get_frame_info(self, cur_info):
+        """
+        Format frame info for tracking
+        """
+        frame_info = dict() # 얻어와야 하는 데이터: time_stamp, ego, det_types, dets, aux_info{velos, is_key_frame}
+
+        # NuScenes dataset에서 설정되어 있는 timestamp 값에 1e-6을 곱해주면 seconds 단위로 변환된다. (simpletrack에서는 seconds 단위로 사용)
+        timestamp = 1e-6 * cur_info['cams'][self.ego_cam]['timestamp'] # in seconds
+
+        # IMU의 ego pose
+        ego2global_translation = cur_info['ego2global_translation']
+        ego2global_rotation = cur_info['ego2global_rotation']
+        ego2global_rotation = Quaternion(ego2global_rotation)
+
+        ego2global_matrix = np.eye(4)
+        ego2global_matrix[:3, :3] = ego2global_rotation.rotation_matrix
+        ego2global_matrix[:3, 3] = np.transpose(np.array(ego2global_translation))
+
+        # load point cloud
+        lidar_path = cur_info['lidar_path']
+        point_cloud = np.fromfile(os.path.join(lidar_path), dtype=np.float32)
+        point_cloud = np.reshape(point_cloud, (-1, 5))[:, :4]
+        point_cloud = point_cloud[:, :3]
+
+        # load ego pose
+        lidar2ego_translation = cur_info['lidar2ego_translation']
+        lidar2ego_rotation = cur_info['lidar2ego_rotation']
+        lidar2ego_translation = np.asarray(lidar2ego_translation)
+        lidar2ego_rotation = Quaternion(np.asarray(lidar2ego_rotation))
+
+        # lidar frame -> ego frame
+        point_cloud = np.dot(point_cloud, lidar2ego_rotation.rotation_matrix.T)
+        point_cloud += lidar2ego_translation
+
+        # ego frame -> global frame
+        point_cloud = utils.pc2world(ego2global_matrix, point_cloud)
+        
+        is_key_frame = True
+        
+        frame_info['time_stamp'] = timestamp
+        frame_info['ego'] = ego2global_matrix
+        frame_info['is_key_frame'] = is_key_frame
+        frame_info['pc'] = point_cloud
+        
+        return frame_info
+
+    def get_det_info(self, preds):
+        """
+        For association, format detection info from detector's predictions
+        - preds: detection results from BEV detector
+        """
+        
+        det_info = dict()
+        
+        # @@@ Detection 관련 정보들 @@@
+        # SimpleTrack에서는 preprocessing - detection.py 로부터 전처리된 npz 파일을 nuscenes_loader.py에서 또 처리해서 input으로 변환
+        bboxes, det_types, velos = [], [], []
+
+        # preprocessing/detection.py
+        for pred in preds: # sample_result2bbox_array()
+            trans, size, rot, score = pred['translation'], pred['size'], pred['rotation'], pred['detection_score']
+            
+            bbox = trans + size + rot + [score]
+            inst_type = pred['detection_name']
+            inst_velo = pred['velocity']
+            bboxes += [bbox]
+            det_types += [inst_type]
+            velos += [inst_velo.tolist()] # annos 생성될때 velo만 tolist() 적용 안됐었음, 여기서 적용
+
+        # data_loader/nuscenes_loader.py, NuScenesLoader.__next__()
+        dets = [nu_array2mot_bbox(b) for b in bboxes]
+        
+        # frame_nms (dets, det_types, velos, thres)
+        iou_thres = 0.1
+        frame_indexes, det_types = nms(dets, det_types, iou_thres)
+        dets = [dets[i] for i in frame_indexes]
+        velos = [velos[i] for i in frame_indexes]
+
+        # dets = [BBox.bbox2array(d) for d in dets]
+        
+        # What we need to association
+        det_info['dets'] = dets
+        det_info['det_types'] = det_types
+        det_info['velos'] = velos
+        
+        return det_info
+        
 
 class NuScenesLoader:
     def __init__(self, configs, type_token, segment_name, data_folder, det_data_folder, start_frame, is_all_classes=False):

@@ -15,15 +15,18 @@ class RedundancyModule:
         self.det_threshold = configs['redundancy']['det_dist_threshold'][self.asso]
         self.motion_model_type = configs['running']['motion_model']
     
-    def infer(self, trk: Tracklet, input_data: FrameData, time_lag=None):
-        if self.mode == 'bbox':
-            return self.bbox_redundancy(trk, input_data)
-        elif self.mode == 'mm':
-            return self.motion_model_redundancy(trk, input_data, time_lag)
-        else:
-            return self.default_redundancy(trk, input_data)
+    # def infer(self, trk: Tracklet, input_data: FrameData, time_lag=None):
+    def infer(self, trk: Tracklet, time_lag=None):
+        # if self.mode == 'bbox':
+        #     return self.bbox_redundancy(trk, input_data)
+        # elif self.mode == 'mm':
+        #     return self.motion_model_redundancy(trk, input_data, time_lag)
+        # else:
+        #     return self.default_redundancy(trk, input_data)
+        return self.default_redundancy(trk)
     
-    def default_redundancy(self, trk: Tracklet, input_data: FrameData):
+    # def default_redundancy(self, trk: Tracklet, input_data: FrameData):
+    def default_redundancy(self, trk: Tracklet):
         """ Return the supposed state, association string, and auxiliary information
         """
         pred_bbox = trk.get_state()

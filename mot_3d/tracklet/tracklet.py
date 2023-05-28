@@ -36,7 +36,7 @@ class Tracklet:
             the other components have to be synced
             the result is a BBox
 
-            the ussage of time_stamp is optional, only if you use velocities
+            the usage of time_stamp is optional, only if you use velocities
         """
         result = self.motion_model.get_prediction(time_stamp=time_stamp)
         self.life_manager.predict(is_key_frame=is_key_frame)
