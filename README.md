@@ -1,4 +1,4 @@
-# SimpleTrack: Simple yet Effective 3D Multi-object Tracking
+## SimpleTrack: Simple yet Effective 3D Multi-object Tracking
 
 This is the repository for our paper [SimpleTrack: Understanding and Rethinking 3D Multi-object Tracking](https://arxiv.org/abs/2111.09621). We are still working on writing the documentations and cleaning up the code, but the following parts are sufficient for you to replicate the results in our paper. For more variants of the model, we have already moved all of our code onto the `dev` branch, so please feel free to check it out if you really need to delve deep recently. We will try our best to get everything ready as soon as possible.
 
